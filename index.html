@@ -2,27 +2,86 @@
 <html lang="pt-BR">
 <head>
 <meta charset="UTF-8">
-<title>Gemini IA - Chat Pessoal</title>
+<title>Gemini IA - Rápido</title>
+
 <style>
-body { margin:0; background:#0b0f14; color:#e5e7eb; font-family:Arial,sans-serif; display:flex; height:100vh;}
-.chat{width:50%; display:flex; flex-direction:column; border-right:1px solid #1f2933;}
-.messages{flex:1; padding:15px; overflow-y:auto;}
-.msg{margin-bottom:10px; padding:10px; border-radius:10px; max-width:80%;}
-.user{background:#7c3aed; margin-left:auto;}
+body{
+  margin:0;
+  background:#0b0f14;
+  color:#e5e7eb;
+  font-family:Arial;
+  display:flex;
+  height:100vh;
+}
+.chat{
+  width:50%;
+  display:flex;
+  flex-direction:column;
+  border-right:1px solid #1f2933;
+}
+.top{
+  padding:10px;
+  border-bottom:1px solid #1f2933;
+}
+.messages{
+  flex:1;
+  padding:15px;
+  overflow-y:auto;
+}
+.msg{
+  margin-bottom:10px;
+  padding:10px;
+  border-radius:8px;
+  max-width:80%;
+  white-space:pre-wrap;
+}
+.user{background:#7c3aed;margin-left:auto;}
 .ai{background:#111827;}
-.input{display:flex; padding:10px; gap:5px; border-top:1px solid #1f2933;}
-textarea{flex:1; resize:none; height:50px; border-radius:8px; border:none; padding:8px;}
-button{padding:0 15px; border:none; border-radius:8px; background:#7c3aed; color:white; cursor:pointer;}
-.code{width:50%; padding:15px; background:#020617; font-family:monospace; white-space:pre-wrap; overflow-y:auto;}
-.top{padding:10px; border-bottom:1px solid #1f2933; display:flex; gap:5px;}
-input{flex:1; border-radius:6px; border:none; padding:6px;}
+.input{
+  display:flex;
+  gap:5px;
+  padding:10px;
+  border-top:1px solid #1f2933;
+}
+textarea{
+  flex:1;
+  height:50px;
+  resize:none;
+  border:none;
+  border-radius:6px;
+  padding:8px;
+}
+button{
+  border:none;
+  border-radius:6px;
+  background:#7c3aed;
+  color:white;
+  padding:0 15px;
+  cursor:pointer;
+}
+.code{
+  width:50%;
+  background:#020617;
+  padding:15px;
+  font-family:monospace;
+  white-space:pre-wrap;
+  overflow-y:auto;
+}
+.counter{
+  font-size:12px;
+  opacity:0.7;
+  margin-top:5px;
+}
 </style>
 </head>
+
 <body>
 
 <div class="chat">
   <div class="top">
-    <input id="apiKey" placeholder="Cole sua API Key do Gemini aqui">
+    <input id="apiKey" placeholder="Cole sua API Key do Gemini aqui"
+      style="width:100%;padding:6px;border:none;border-radius:6px;">
+    <div class="counter" id="counter"></div>
   </div>
 
   <div class="messages" id="messages"></div>
@@ -34,66 +93,98 @@ input{flex:1; border-radius:6px; border:none; padding:6px;}
 </div>
 
 <div class="code" id="code">
--- Código aparecerá aqui
+-- Código ou erro aparecerá aqui
 </div>
 
 <script>
-let authorized = false;
+const PRO_LIMIT = 3;
+let proUses = Number(localStorage.getItem("proUses") || 0);
+updateCounter();
 
-function addMsg(text, cls) {
+function updateCounter(){
+  document.getElementById("counter").textContent =
+    `Gemini Pro: ${proUses} / ${PRO_LIMIT} usos`;
+}
+
+function addMsg(text, cls){
   const div = document.createElement("div");
   div.className = "msg " + cls;
   div.textContent = text;
-  document.getElementById("messages").appendChild(div);
-  document.getElementById("messages").scrollTop = 999999;
+  messages.appendChild(div);
+  messages.scrollTop = 999999;
 }
 
-async function send() {
+async function send(){
   const input = document.getElementById("input");
   const text = input.value.trim();
-  if (!text) return;
+  if(!text) return;
   input.value = "";
 
-  addMsg(text, "user");
+  addMsg(text,"user");
 
-  if (text.toLowerCase() === "pode criar") {
-    authorized = true;
-  }
-
-  let apiKey = document.getElementById("apiKey").value;
-  apiKey = apiKey.trim().replace(/^.*?AIza/, "AIza"); // remove tudo antes de "AIza"
-
-  if (!apiKey.startsWith("AIza")) {
-    addMsg("API Key inválida.", "ai");
+  if(proUses >= PRO_LIMIT){
+    addMsg("❌ Limite do Gemini Pro atingido (3/3).","ai");
     return;
   }
 
-  const prompt = authorized
-    ? "Gere o código solicitado, explique tudo e mostre o código.\n" + text
-    : "Explique o que você faria. NÃO gere código ainda.\n" + text;
+  let apiKey = document.getElementById("apiKey").value
+    .trim()
+    .replace(/^.*?AIza/, "AIza");
 
-  try {
+  if(!apiKey.startsWith("AIza")){
+    addMsg("❌ API Key inválida.","ai");
+    document.getElementById("code").textContent =
+      "ERRO LOCAL\n\nAPI Key não começa com 'AIza'";
+    return;
+  }
+
+  try{
     const res = await fetch(
       "https://generativelanguage.googleapis.com/v1beta/models/gemini-1.5-pro:generateContent?key=" + apiKey,
       {
-        method: "POST",
-        headers: { "Content-Type": "application/json" },
-        body: JSON.stringify({
-          contents: [{ parts: [{ text: prompt }] }]
+        method:"POST",
+        headers:{ "Content-Type":"application/json" },
+        body:JSON.stringify({
+          contents:[{ parts:[{ text:text }] }]
         })
       }
     );
 
+    const status = res.status;
     const data = await res.json();
-    const reply = data.candidates?.[0]?.content?.parts?.[0]?.text || "Erro na resposta";
 
-    addMsg(reply, "ai");
+    if(!res.ok){
+      const errorMsg =
+        data?.error?.message || "Erro desconhecido da API";
 
-    if (authorized) {
-      document.getElementById("code").textContent = reply;
+      const fullError =
+        "ERRO DA API GEMINI\n" +
+        "Status HTTP: " + status + "\n\n" +
+        errorMsg;
+
+      addMsg("❌ Erro na resposta da API.","ai");
+      document.getElementById("code").textContent = fullError;
+      return;
     }
-  } catch (e) {
-    addMsg("Erro ao conectar com Gemini: " + e.message, "ai");
+
+    const reply =
+      data.candidates?.[0]?.content?.parts?.[0]?.text ||
+      "Resposta vazia do modelo";
+
+    addMsg(reply,"ai");
+    document.getElementById("code").textContent = reply;
+
+    proUses++;
+    localStorage.setItem("proUses", proUses);
+    updateCounter();
+
+  }catch(e){
+    const crashError =
+      "ERRO DE CONEXÃO\n\n" +
+      e.message;
+
+    addMsg("❌ Erro de conexão.","ai");
+    document.getElementById("code").textContent = crashError;
   }
 }
 </script>
