@@ -1,108 +1,41 @@
 <!DOCTYPE html>
 <html lang="pt-BR">
 <head>
-  <meta charset="UTF-8">
-  <title>Gemini IA - Chat Pessoal</title>
-  <style>
-    body {
-      margin: 0;
-      background: #0b0f14;
-      color: #e5e7eb;
-      font-family: Arial, sans-serif;
-      display: flex;
-      height: 100vh;
-    }
-
-    .chat {
-      width: 50%;
-      display: flex;
-      flex-direction: column;
-      border-right: 1px solid #1f2933;
-    }
-
-    .messages {
-      flex: 1;
-      padding: 15px;
-      overflow-y: auto;
-    }
-
-    .msg {
-      margin-bottom: 10px;
-      padding: 10px;
-      border-radius: 10px;
-      max-width: 80%;
-    }
-
-    .user { background: #7c3aed; margin-left: auto; }
-    .ai { background: #111827; }
-
-    .input {
-      display: flex;
-      padding: 10px;
-      gap: 5px;
-      border-top: 1px solid #1f2933;
-    }
-
-    textarea {
-      flex: 1;
-      resize: none;
-      height: 50px;
-      border-radius: 8px;
-      border: none;
-      padding: 8px;
-    }
-
-    button {
-      padding: 0 15px;
-      border: none;
-      border-radius: 8px;
-      background: #7c3aed;
-      color: white;
-      cursor: pointer;
-    }
-
-    .code {
-      width: 50%;
-      padding: 15px;
-      background: #020617;
-      font-family: monospace;
-      white-space: pre-wrap;
-      overflow-y: auto;
-    }
-
-    .top {
-      padding: 10px;
-      border-bottom: 1px solid #1f2933;
-      display: flex;
-      gap: 5px;
-    }
-
-    input {
-      flex: 1;
-      border-radius: 6px;
-      border: none;
-      padding: 6px;
-    }
-  </style>
+<meta charset="UTF-8">
+<title>Gemini IA - Chat Pessoal</title>
+<style>
+body { margin:0; background:#0b0f14; color:#e5e7eb; font-family:Arial,sans-serif; display:flex; height:100vh;}
+.chat{width:50%; display:flex; flex-direction:column; border-right:1px solid #1f2933;}
+.messages{flex:1; padding:15px; overflow-y:auto;}
+.msg{margin-bottom:10px; padding:10px; border-radius:10px; max-width:80%;}
+.user{background:#7c3aed; margin-left:auto;}
+.ai{background:#111827;}
+.input{display:flex; padding:10px; gap:5px; border-top:1px solid #1f2933;}
+textarea{flex:1; resize:none; height:50px; border-radius:8px; border:none; padding:8px;}
+button{padding:0 15px; border:none; border-radius:8px; background:#7c3aed; color:white; cursor:pointer;}
+.code{width:50%; padding:15px; background:#020617; font-family:monospace; white-space:pre-wrap; overflow-y:auto;}
+.top{padding:10px; border-bottom:1px solid #1f2933; display:flex; gap:5px;}
+input{flex:1; border-radius:6px; border:none; padding:6px;}
+</style>
 </head>
 <body>
 
-  <div class="chat">
-    <div class="top">
-      <input id="apiKey" placeholder="AIzaSyDMO6XPhyVcKRfqoZuKuPz9suYOg-hcnPE">
-    </div>
-
-    <div class="messages" id="messages"></div>
-
-    <div class="input">
-      <textarea id="input" placeholder="Digite aqui..."></textarea>
-      <button onclick="send()">Enviar</button>
-    </div>
+<div class="chat">
+  <div class="top">
+    <input id="apiKey" placeholder="Cole sua API Key do Gemini aqui">
   </div>
 
-  <div class="code" id="code">
+  <div class="messages" id="messages"></div>
+
+  <div class="input">
+    <textarea id="input" placeholder="Digite aqui..."></textarea>
+    <button onclick="send()">Enviar</button>
+  </div>
+</div>
+
+<div class="code" id="code">
 -- Código aparecerá aqui
-  </div>
+</div>
 
 <script>
 let authorized = false;
@@ -127,9 +60,11 @@ async function send() {
     authorized = true;
   }
 
-  const apiKey = document.getElementById("apiKey").value.trim();
-  if (!apiKey) {
-    addMsg("Cole a API Key primeiro.", "ai");
+  let apiKey = document.getElementById("apiKey").value;
+  apiKey = apiKey.trim().replace(/^.*?AIza/, "AIza"); // remove tudo antes de "AIza"
+
+  if (!apiKey.startsWith("AIza")) {
+    addMsg("API Key inválida.", "ai");
     return;
   }
 
@@ -137,28 +72,31 @@ async function send() {
     ? "Gere o código solicitado, explique tudo e mostre o código.\n" + text
     : "Explique o que você faria. NÃO gere código ainda.\n" + text;
 
-  const res = await fetch(
-    "https://generativelanguage.googleapis.com/v1beta/models/gemini-1.5-pro:generateContent?key=" + apiKey,
-    {
-      method: "POST",
-      headers: { "Content-Type": "application/json" },
-      body: JSON.stringify({
-        contents: [{ parts: [{ text: prompt }] }]
-      })
+  try {
+    const res = await fetch(
+      "https://generativelanguage.googleapis.com/v1beta/models/gemini-1.5-pro:generateContent?key=" + apiKey,
+      {
+        method: "POST",
+        headers: { "Content-Type": "application/json" },
+        body: JSON.stringify({
+          contents: [{ parts: [{ text: prompt }] }]
+        })
+      }
+    );
+
+    const data = await res.json();
+    const reply = data.candidates?.[0]?.content?.parts?.[0]?.text || "Erro na resposta";
+
+    addMsg(reply, "ai");
+
+    if (authorized) {
+      document.getElementById("code").textContent = reply;
     }
-  );
-
-  const data = await res.json();
-  const reply = data.candidates?.[0]?.content?.parts?.[0]?.text || "Erro";
-
-  addMsg(reply, "ai");
-
-  if (authorized) {
-    document.getElementById("code").textContent = reply;
+  } catch (e) {
+    addMsg("Erro ao conectar com Gemini: " + e.message, "ai");
   }
 }
 </script>
 
 </body>
 </html>
-
